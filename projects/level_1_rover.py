@@ -7,7 +7,7 @@ from board import SCL, SDA
 import busio 
 from adafruit_pca9685 import PCA9685
 from adafruit_motor import motor, servo
-from gpiozero import InputDevice, DistanceSensor
+from gpiozero import InputDevice, DistanceSensor, LED, TonalBuzzer
 from time import sleep
 
 i2c = busio.I2C(SCL, SDA)
@@ -24,6 +24,10 @@ capteur_centre = InputDevice(pin=27)
 capteur_droite = InputDevice(pin=17)
 
 capteur_distance = DistanceSensor(echo=24, trigger=23, max_distance=2)
+
+phare_gauche = LED(25)
+phare_droit = LED(11)
+buzzer = TonalBuzzer(18)
 
 objet_collecte = False
 
@@ -52,9 +56,62 @@ def stop():
     motor2.throttle = 0
 
 
+def demi_tour():
+    """Fait un demi-tour sur place"""
+    print("Demi-tour...")
+    phares_clignoter()
+    
+    motor1.throttle = -0.3
+    motor2.throttle = 0.3
+    set_servo(0, 90)
+    
+    sleep(2.0)
+    
+    stop()
+    phares_allumer()
+    print("Demi-tour termine")
+
+
+def phares_allumer():
+    """Allume les phares"""
+    phare_gauche.on()
+    phare_droit.on()
+
+
+def phares_eteindre():
+    """Eteint les phares"""
+    phare_gauche.off()
+    phare_droit.off()
+
+
+def phares_clignoter():
+    """Fait clignoter les phares"""
+    phare_gauche.blink(on_time=0.3, off_time=0.3)
+    phare_droit.blink(on_time=0.3, off_time=0.3)
+
+
+def bip_court():
+    """Bip court"""
+    buzzer.play("C4")
+    sleep(0.15)
+    buzzer.stop()
+
+
+def bip_double():
+    """Double bip"""
+    buzzer.play("C4")
+    sleep(0.15)
+    buzzer.stop()
+    sleep(0.1)
+    buzzer.play("C4")
+    sleep(0.15)
+    buzzer.stop()
+
+
 def initialiser():
     """Initialise le rover et ses servos"""
     print("Initialisation...")
+    phares_eteindre()
     set_servo(0, 90)
     set_servo(2, 150)
     set_servo(4, 30)
@@ -73,6 +130,7 @@ def get_distance():
 def saisir_objet():
     """Sequence pour saisir un objet"""
     print("Saisie objet...")
+    phares_clignoter()
     
     set_servo(4, 30)
     sleep(0.5)
@@ -86,12 +144,15 @@ def saisir_objet():
     set_servo(2, 150)
     sleep(0.5)
     
+    bip_court()
+    phares_allumer()
     print("Objet saisi")
 
 
 def deposer_objet():
     """Sequence pour deposer un objet"""
     print("Depot objet...")
+    phares_clignoter()
     
     set_servo(2, 100)
     sleep(0.5)
@@ -102,6 +163,7 @@ def deposer_objet():
     set_servo(2, 150)
     sleep(0.5)
     
+    bip_double()
     print("Objet depose")
 
 
@@ -114,6 +176,7 @@ def detecter_et_collecter():
     
     if distance < distance_detection:
         print("Objet detecte a %.1f cm" % distance)
+        phares_eteindre()
         stop()
         sleep(0.5)
         
@@ -163,28 +226,46 @@ def suivre_ligne():
     return False
 
 
+def executer_mission():
+    """Execute une mission complete : collecter et livrer un objet"""
+    global objet_collecte
+    
+    objet_collecte = False
+    print("\n--- Mission ALLER ---")
+    
+    while True:
+        if not objet_collecte:
+            detecter_et_collecter()
+        
+        if suivre_ligne():
+            print("Arrivee")
+            break
+        
+        sleep(0.05)
+
+
 def main():
     try:
         print("MARS ROVER - Niveau 1")
-        print("Suivi ligne + Collecte objet unique")
-        print("Ctrl+C pour arreter\n")
+        print("Suivi ligne + Collecte objet")
+        print("Missions continues - Ctrl+C pour arreter\n")
         
         initialiser()
+        phares_allumer()
         
         while True:
-            if not objet_collecte:
-                detecter_et_collecter()
+            executer_mission()
             
-            if suivre_ligne():
-                print("\nFin du trajet")
-                break
-            
-            sleep(0.05)
+            sleep(1)
+            demi_tour()
+            sleep(1)
+
     
     except KeyboardInterrupt:
         print("\nArret demande")
     
     finally:
+        phares_eteindre()
         stop()
         pwm.deinit()
         print("Arret propre")
