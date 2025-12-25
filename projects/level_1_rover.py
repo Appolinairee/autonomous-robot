@@ -1,0 +1,193 @@
+"""
+MARS ROVER - NIVEAU 1
+Suivi de ligne avec detection et collecte d'objets
+"""
+
+from board import SCL, SDA
+import busio 
+from adafruit_pca9685 import PCA9685
+from adafruit_motor import motor, servo
+from gpiozero import InputDevice, DistanceSensor
+from time import sleep
+
+i2c = busio.I2C(SCL, SDA)
+pwm = PCA9685(i2c, address=0x5f)
+pwm.frequency = 50
+
+motor1 = motor.DCMotor(pwm.channels[15], pwm.channels[14])
+motor2 = motor.DCMotor(pwm.channels[12], pwm.channels[13])
+motor1.decay_mode = motor.SLOW_DECAY
+motor2.decay_mode = motor.SLOW_DECAY
+
+capteur_gauche = InputDevice(pin=22)
+capteur_centre = InputDevice(pin=27)
+capteur_droite = InputDevice(pin=17)
+
+capteur_distance = DistanceSensor(echo=24, trigger=23, max_distance=2)
+
+objet_collecte = False
+
+
+def set_servo(channel, angle):
+    """Configure l'angle d'un servo"""
+    servo_obj = servo.Servo(
+        pwm.channels[channel],
+        min_pulse=500,
+        max_pulse=2400,
+        actuation_range=180
+    )
+    servo_obj.angle = angle
+
+
+def conduire(vitesse, angle):
+    """Fait rouler le robot avec vitesse et direction donnees"""
+    motor1.throttle = -vitesse
+    motor2.throttle = -vitesse
+    set_servo(0, angle)
+
+
+def stop():
+    """Arret des moteurs"""
+    motor1.throttle = 0
+    motor2.throttle = 0
+
+
+def initialiser():
+    """Initialise le rover et ses servos"""
+    print("Initialisation...")
+    set_servo(0, 90)
+    set_servo(2, 150)
+    set_servo(4, 30)
+    sleep(1)
+    print("Pret")
+
+
+def get_distance():
+    """Mesure la distance devant le rover en cm"""
+    try:
+        return capteur_distance.distance * 100
+    except:
+        return 999
+
+
+def saisir_objet():
+    """Sequence pour saisir un objet"""
+    print("Saisie objet...")
+    
+    set_servo(4, 30)
+    sleep(0.5)
+    
+    set_servo(2, 100)
+    sleep(0.5)
+    
+    set_servo(4, 115)
+    sleep(0.5)
+    
+    set_servo(2, 150)
+    sleep(0.5)
+    
+    print("Objet saisi")
+
+
+def deposer_objet():
+    """Sequence pour deposer un objet"""
+    print("Depot objet...")
+    
+    set_servo(2, 100)
+    sleep(0.5)
+    
+    set_servo(4, 30)
+    sleep(0.5)
+    
+    set_servo(2, 150)
+    sleep(0.5)
+    
+    print("Objet depose")
+
+
+def detecter_et_collecter():
+    """Detecte et collecte un objet si present"""
+    global objet_collecte
+    
+    distance_detection = 15
+    distance = get_distance()
+    
+    if distance < distance_detection:
+        print("Objet detecte a %.1f cm" % distance)
+        stop()
+        sleep(0.5)
+        
+        saisir_objet()
+        objet_collecte = True
+        print("Objet collecte - Reprise trajet")
+        sleep(1)
+        
+        return True
+    
+    return False
+
+
+def suivre_ligne():
+    vitesse_normale = 0.3
+    vitesse_virage = 0.2
+    
+    # Suivi de ligne
+    gauche = capteur_gauche.value
+    centre = capteur_centre.value
+    droite = capteur_droite.value
+    
+    print('G:%d C:%d D:%d' % (gauche, centre, droite))
+    
+    # Sur la ligne - avancer droit
+    if (gauche == 0 and centre == 1 and droite == 0) or \
+       (gauche == 1 and centre == 1 and droite == 1):
+        conduire(vitesse_normale, 90)
+    
+    # Derive a droite - corriger a droite
+    elif (gauche == 0 and centre == 1 and droite == 1) or \
+         (gauche == 0 and centre == 0 and droite == 1):
+        conduire(vitesse_virage, 105)
+    
+    # Derive a gauche - corriger a gauche
+    elif (gauche == 1 and centre == 1 and droite == 0) or \
+         (gauche == 1 and centre == 0 and droite == 0):
+        conduire(vitesse_virage, 75)
+    
+    # Ligne perdue - fin du trajet
+    elif gauche == 0 and centre == 0 and droite == 0:
+        stop()
+        if objet_collecte:
+            deposer_objet()
+        return True
+    
+    return False
+
+
+def main():
+    try:
+        print("MARS ROVER - Niveau 1")
+        print("Suivi ligne + Collecte objet unique")
+        print("Ctrl+C pour arreter\n")
+        
+        initialiser()
+        
+        while True:
+            if not objet_collecte:
+                detecter_et_collecter()
+            
+            if suivre_ligne():
+                print("\nFin du trajet")
+                break
+            
+            sleep(0.05)
+    
+    except KeyboardInterrupt:
+        print("\nArret demande")
+    
+    finally:
+        stop()
+        pwm.deinit()
+        print("Arret propre")
+
+if __name__ == "__main__":
+    main()
