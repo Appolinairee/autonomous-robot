@@ -8,7 +8,8 @@ import busio
 from adafruit_pca9685 import PCA9685
 from adafruit_motor import motor, servo
 from gpiozero import InputDevice, DistanceSensor, LED, TonalBuzzer
-from time import sleep
+from time import sleep, strftime
+from picamera import PiCamera
 
 i2c = busio.I2C(SCL, SDA)
 pwm = PCA9685(i2c, address=0x5f)
@@ -29,7 +30,9 @@ phare_gauche = LED(25)
 phare_droit = LED(11)
 buzzer = TonalBuzzer(18)
 
-objet_collecte = False
+camera = PiCamera()
+
+compteur_objets = 0
 
 
 def set_servo(channel, angle):
@@ -127,6 +130,21 @@ def get_distance():
         return 999
 
 
+def prendre_photo():
+    """Prend une photo avec timestamp"""
+    timestamp = strftime("%Y%m%d_%H%M%S")
+    nom_fichier = f"/home/pi/echantillon_{timestamp}.jpg"
+    
+    print("Prise de photo...")
+    phare_gauche.on()
+    phare_droit.on()
+    
+    camera.capture(nom_fichier)
+    sleep(0.5)
+    
+    print(f"Photo sauvee: {nom_fichier}")
+
+
 def saisir_objet():
     """Sequence pour saisir un objet"""
     print("Saisie objet...")
@@ -168,8 +186,8 @@ def deposer_objet():
 
 
 def detecter_et_collecter():
-    """Detecte et collecte un objet si present"""
-    global objet_collecte
+    """Detecte, photographie et collecte un objet si present"""
+    global compteur_objets
     
     distance_detection = 15
     distance = get_distance()
@@ -180,9 +198,11 @@ def detecter_et_collecter():
         stop()
         sleep(0.5)
         
+        prendre_photo()
         saisir_objet()
-        objet_collecte = True
-        print("Objet collecte - Reprise trajet")
+        
+        compteur_objets += 1
+        print("Objet collecte #%d" % compteur_objets)
         sleep(1)
         
         return True
@@ -219,7 +239,7 @@ def suivre_ligne():
     # Ligne perdue - fin du trajet
     elif gauche == 0 and centre == 0 and droite == 0:
         stop()
-        if objet_collecte:
+        if compteur_objets > 0:
             deposer_objet()
         return True
     
@@ -227,21 +247,24 @@ def suivre_ligne():
 
 
 def executer_mission():
-    """Execute une mission complete : collecter et livrer un objet"""
-    global objet_collecte
+    """Execute une mission complete : collecter et livrer des objets"""
+    global compteur_objets
     
-    objet_collecte = False
+    compteur_objets = 0
     print("\n--- Mission ALLER ---")
     
     while True:
-        if not objet_collecte:
-            detecter_et_collecter()
+        detecter_et_collecter()
         
         if suivre_ligne():
-            print("Arrivee")
+            print("Arrivee - Objets collectes: %d" % compteur_objets)
             break
         
         sleep(0.05)
+    
+    sleep(1)
+    demi_tour()
+    sleep(1)
 
 
 def main():
@@ -255,11 +278,6 @@ def main():
         
         while True:
             executer_mission()
-            
-            sleep(1)
-            demi_tour()
-            sleep(1)
-
     
     except KeyboardInterrupt:
         print("\nArret demande")
@@ -267,6 +285,7 @@ def main():
     finally:
         phares_eteindre()
         stop()
+        camera.close()
         pwm.deinit()
         print("Arret propre")
 
