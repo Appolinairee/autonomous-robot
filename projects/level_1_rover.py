@@ -10,6 +10,8 @@ from adafruit_motor import motor, servo
 from gpiozero import InputDevice, DistanceSensor, LED, TonalBuzzer
 from time import sleep, strftime
 from picamera import PiCamera
+import google.generativeai as genai
+from PIL import Image
 
 i2c = busio.I2C(SCL, SDA)
 pwm = PCA9685(i2c, address=0x5f)
@@ -31,6 +33,11 @@ phare_droit = LED(11)
 buzzer = TonalBuzzer(18)
 
 camera = PiCamera()
+
+# Configuration Gemini API
+GEMINI_API_KEY = "VOTRE_CLE_API_ICI"
+genai.configure(api_key=GEMINI_API_KEY)
+model_gemini = genai.GenerativeModel('gemini-1.5-flash')
 
 compteur_objets = 0
 
@@ -143,6 +150,33 @@ def prendre_photo():
     sleep(0.5)
     
     print(f"Photo sauvee: {nom_fichier}")
+    return nom_fichier
+
+
+def analyser_avec_gemini(chemin_photo):
+    """Analyse la photo avec Gemini et determine l'action"""
+    print("Analyse IA en cours...")
+    
+    try:
+        image = Image.open(chemin_photo)
+        
+        prompt = """Analyse cette image prise par un rover Mars.
+        Reponds UNIQUEMENT par un mot parmi:
+        - COLLECTER (objet interessant a ramasser)
+        - DEGAGER (obstacle a pousser hors du chemin)
+        - IGNORER (rien d'important)
+        
+        Reponse:"""
+        
+        response = model_gemini.generate_content([prompt, image])
+        decision = response.text.strip().upper()
+        
+        print(f"Decision IA: {decision}")
+        return decision
+        
+    except Exception as e:
+        print(f"Erreur IA: {e}")
+        return "COLLECTER"  # Par defaut
 
 
 def saisir_objet():
@@ -185,8 +219,31 @@ def deposer_objet():
     print("Objet depose")
 
 
+def degager_obstacle():
+    """Pousse un obstacle hors du chemin"""
+    print("Degagement obstacle...")
+    phares_clignoter()
+    
+    # Approche doucement
+    conduire(0.2, 90)
+    sleep(0.8)
+    
+    # Pousse a droite
+    conduire(0.3, 120)
+    sleep(1.5)
+    
+    # Recule
+    motor1.throttle = 0.3
+    motor2.throttle = 0.3
+    sleep(1.0)
+    
+    stop()
+    phares_allumer()
+    print("Obstacle degage")
+
+
 def detecter_et_collecter():
-    """Detecte, photographie et collecte un objet si present"""
+    """Detecte, photographie et analyse avec IA"""
     global compteur_objets
     
     distance_detection = 15
@@ -198,13 +255,24 @@ def detecter_et_collecter():
         stop()
         sleep(0.5)
         
-        prendre_photo()
-        saisir_objet()
+        # Photo et analyse IA
+        chemin_photo = prendre_photo()
+        decision = analyser_avec_gemini(chemin_photo)
         
-        compteur_objets += 1
-        print("Objet collecte #%d" % compteur_objets)
+        # Action selon decision IA
+        if decision == "COLLECTER":
+            saisir_objet()
+            compteur_objets += 1
+            print("Objet collecte #%d" % compteur_objets)
+        
+        elif decision == "DEGAGER":
+            degager_obstacle()
+            print("Obstacle degage")
+        
+        else:  # IGNORER
+            print("Rien a faire - Continue")
+        
         sleep(1)
-        
         return True
     
     return False
