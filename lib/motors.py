@@ -55,3 +55,10 @@ def tourner_gauche(vitesse=0.2):
 def tourner_droite(vitesse=0.2):
     """Avance en tournant a droite"""
     conduire(vitesse, 105)
+
+
+def pivoter_sur_place(vitesse=0.2):
+    """Rotation sur place (moteurs en sens oppose)"""
+    servo_direction.angle = 90
+    motor1.throttle = -vitesse
+    motor2.throttle = vitesse
