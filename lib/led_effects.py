@@ -155,3 +155,126 @@ def led_mode_arret():
 def led_cleanup():
     """Nettoie et eteint les LEDs"""
     led_eteindre()
+
+
+# ========== TESTS ==========
+
+def test_leds():
+    """
+    Fonction de test : teste tous les effets LED
+    """
+    import time
+    
+    print("\n=== TEST LEDs WS2812 ===")
+    print(f"Configuration: {LED_COUNT} LEDs sur GPIO {LED_PIN}\n")
+    
+    try:
+        # Test 1 : Eteindre
+        print("[1/12] Test extinction...")
+        led_eteindre()
+        time.sleep(1)
+        
+        # Test 2 : Couleurs de base
+        print("[2/12] Test couleurs de base...")
+        print("  - Rouge")
+        led_couleur(255, 0, 0)
+        time.sleep(1)
+        print("  - Vert")
+        led_couleur(0, 255, 0)
+        time.sleep(1)
+        print("  - Bleu")
+        led_couleur(0, 0, 255)
+        time.sleep(1)
+        
+        # Test 3 : LEDs individuelles
+        print("[3/12] Test LEDs individuelles...")
+        led_eteindre()
+        for i in range(LED_COUNT):
+            print(f"  - LED {i}")
+            led_individuelle(i, 255, 0, 0)
+            time.sleep(0.5)
+        led_eteindre()
+        time.sleep(0.5)
+        
+        # Test 4 : Status OK
+        print("[4/12] Test status OK (vert)...")
+        led_status_ok()
+        time.sleep(1.5)
+        
+        # Test 5 : Status erreur
+        print("[5/12] Test status erreur (rouge)...")
+        led_status_erreur()
+        time.sleep(1.5)
+        
+        # Test 6 : Status attention
+        print("[6/12] Test status attention (orange)...")
+        led_status_attention()
+        time.sleep(1.5)
+        
+        # Test 7 : Status attente
+        print("[7/12] Test status attente (bleu)...")
+        led_status_attente()
+        time.sleep(1.5)
+        
+        # Test 8 : Clignotement
+        print("[8/12] Test clignotement...")
+        led_clignoter(255, 0, 255, fois=5, duree=0.2)
+        time.sleep(0.5)
+        
+        # Test 9 : Balayage
+        print("[9/12] Test balayage...")
+        for _ in range(3):
+            led_balayage(0, 255, 255, duree=0.15)
+        time.sleep(0.5)
+        
+        # Test 10 : Progression
+        print("[10/12] Test progression...")
+        for niveau in range(0, 101, 33):
+            print(f"  - {niveau}%")
+            led_progression(niveau)
+            time.sleep(0.5)
+        time.sleep(0.5)
+        
+        # Test 11 : Arc-en-ciel
+        print("[11/12] Test arc-en-ciel...")
+        led_rainbow()
+        time.sleep(0.5)
+        
+        # Test 12 : Modes de fonctionnement
+        print("[12/12] Test modes...")
+        print("  - Mode ligne")
+        led_mode_ligne()
+        time.sleep(1)
+        print("  - Mode evitement")
+        led_mode_evitement()
+        time.sleep(1)
+        print("  - Mode exploration")
+        led_mode_exploration()
+        time.sleep(1)
+        print("  - Mode arret")
+        led_mode_arret()
+        time.sleep(1)
+        
+        # Fin
+        print("\n=== FIN DU TEST ===")
+        led_status_ok()
+        time.sleep(2)
+        
+        # Nettoyage
+        led_cleanup()
+        print("✅ Test reussi - LEDs eteintes\n")
+        
+    except KeyboardInterrupt:
+        print("\n\n⚠️ Test interrompu par l'utilisateur")
+        led_cleanup()
+        print("LEDs eteintes\n")
+    
+    except Exception as e:
+        print(f"\n❌ ERREUR: {e}")
+        led_cleanup()
+        print("LEDs eteintes\n")
+
+
+if __name__ == "__main__":
+    # Execution directe du fichier = lance le test
+    test_leds()
